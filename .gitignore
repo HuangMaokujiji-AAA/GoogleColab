@@ -6,3 +6,5 @@ outputs/
 .pytest_cache/
 * - Colab.html
 * - Colab_files/
+.ipynb_checkpoints/
+data/

@@ -1,5 +1,5 @@
 {
-  "data_dir": "/Users/huangmao/Downloads/Code/DeepSpatial/data",
+  "data_dir": "data/Zhuang-ABCA-2",
   "output_dir": "outputs/local",
   "device": "auto",
   "num_threads": 4,

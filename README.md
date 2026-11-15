@@ -1,47 +1,55 @@
-# Rare3D-FM 本地运行版
+# Rare3D-FM 服务器与本地运行版
 
-从本地保存的 Colab HTML 中恢复代码，保留本征 VAE、异配微环境编码器、稀有原型、RW-UOT、四叉树分块、RareFlowNet 和 Heun 重建流程。原始网页仅在本地保留作参考，不随代码上传；运行入口是 `run.py`，不依赖 Notebook、Google Drive 或 Colab。
+从 Colab 迁移的模块化训练项目。推荐从 `run.ipynb` 启动；Notebook 只负责配置和调用，数据处理、模型、训练、评估及重建均保留在独立 Python 模块中。原始 Colab 网页仅在本地保留作参考，不随代码上传。
 
-## 运行
+## Notebook 运行
 
-当前项目已创建 `.venv`，可以直接从项目目录运行：
-
-```bash
-# 只查看本地数据，不训练
-.venv/bin/python run.py --inspect
-
-# 小规模真实数据试跑：3 个切片，每片最多 256 个细胞，64 个基因，每阶段 1 轮
-.venv/bin/python run.py --smoke-test --device cpu
-
-# 正式运行：读取全部切片，采用 configs/local.json 中的训练轮数
-.venv/bin/python run.py
-```
-
-默认数据根目录是 `/Users/huangmao/Downloads/Code/DeepSpatial/data`，程序自动读取其 `Zhuang-ABCA-2/` 下的 `.h5ad`。也可以直接传入切片目录：
+在服务器激活之前创建的 Conda 环境，并注册 Notebook 内核：
 
 ```bash
-.venv/bin/python run.py \
-  --data-dir /Users/huangmao/Downloads/Code/DeepSpatial/data/Zhuang-ABCA-2 \
-  --output-dir outputs/experiment_01 \
-  --device cpu
+conda activate rare3d
+python -m pip install ipykernel jupyterlab
+python -m ipykernel install --user --name rare3d --display-name "Python (rare3d)"
 ```
 
-`auto` 按 CUDA → Apple MPS → CPU 的顺序选择可用设备；也可显式传入 `--device cpu`、`cuda` 或 `mps`。本机已完成 CPU 小规模验证，CUDA/MPS 需要在对应硬件上验证。全量运行包含 250 轮 VAE、200 轮微环境训练和 400 轮流匹配训练，耗时取决于设备；试跑结果仅用于检查流程，不能作为模型质量结论。
+从项目根目录打开 `run.ipynb`，选择 **Python (rare3d)** 内核，然后按单元顺序执行。若需要启动 JupyterLab，可在项目目录运行 `jupyter lab --no-browser`，通过服务器已有的远程访问方式连接。
 
-在其他机器创建独立环境（Python 3.10–3.12）：
+默认数据目录是相对于项目根目录的 `data/Zhuang-ABCA-2/`：
+
+```text
+GoogleColab/
+  run.ipynb
+  configs/
+  rare3d/
+  data/
+    Zhuang-ABCA-2/
+      sec_001.h5ad
+      sec_002.h5ad
+      ...
+```
+
+Notebook 第一个代码单元在导入 PyTorch 前设置 `CUDA_VISIBLE_DEVICES=1`，使用物理 **GPU 1**；因此在 PyTorch 中显示为 `cuda:0`。如果此前已使用其他显卡设置初始化 CUDA，需要先重启内核。GPU 检查单元会验证 CUDA 可用并执行一次 GPU 运算。
+
+默认 `SMOKE_TEST=False`，执行配置中的完整训练（250 轮 VAE、200 轮微环境训练、400 轮流匹配训练）。先检查流程时，将配置单元中的 `SMOKE_TEST` 改为 `True`，再依次执行后续单元。结果分别写入 `outputs/server_gpu1/` 和 `outputs/server_smoke_gpu1/`。
+
+## 命令行运行
+
+保留 `run.py` 作为命令行入口，CUDA 同样默认使用物理 GPU 1：
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python run.py --smoke-test
+python run.py --inspect
+python run.py --smoke-test --device cuda
+python -u run.py --device cuda --output-dir outputs/server_run01
 ```
 
-当前 `.venv` 复用了本机 `d2l` 环境的 PyTorch、Pandas 和 Matplotlib，并在项目内补充了 AnnData、HDF5 和可加载的 SciPy/scikit-learn；没有修改原 Conda 环境。迁移到其他机器时按上述命令重新安装。
+本地 CPU 试跑可执行 `.venv/bin/python run.py --smoke-test --device cpu --data-dir /实际数据目录`。
+模型计算需要 `requirements.txt` 中的依赖；Notebook 内核和界面依赖按上面的命令单独安装。当前机器已验证 CPU 流程，服务器 GPU 流程需在对应设备上执行。
 
 ## 文件职责
 
 ```text
-run.py                       命令行入口
+run.ipynb                    Notebook 训练入口（物理 GPU 1）
+run.py                       保留的命令行入口（CUDA 使用物理 GPU 1）
 configs/local.json           数据路径、设备、训练与内存参数
 rare3d/
   config.py                  配置读取、随机种子与设备选择

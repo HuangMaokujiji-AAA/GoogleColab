@@ -1,6 +1,7 @@
-"""Run Rare3D-FM locally: python run.py --help."""
+"""CLI alternative to run.ipynb; use physical GPU 1 for CUDA training."""
 import argparse
 import json
+import os
 
 
 def main():
@@ -13,6 +14,9 @@ def main():
     parser.add_argument("--smoke-test", action="store_true", help="Run all stages on 3 sections / 256 cells / 1 epoch")
     parser.add_argument("--skip-export", action="store_true", help="Train and validate without exporting the volume")
     args = parser.parse_args()
+    # Set visibility before config imports PyTorch or initializes CUDA.
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     from rare3d.config import load_config, smoke_config, validate_config
     cfg = load_config(args.config)
     if args.smoke_test:
