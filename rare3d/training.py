@@ -1,5 +1,6 @@
 """Train the three model stages; section arrays stay on CPU between batches."""
 import random
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -8,6 +9,7 @@ from sklearn.neighbors import NearestNeighbors
 from torch.nn import functional as F
 
 from .models import IntrinsicDualVAE, HeterophilyNicheEncoder, NicheIntensityPredictor, RareFlowNet
+from .checkpoints import cpu_state_dict, save_checkpoint
 from .transport import build_adaptive_quadtree_tiles, sample_rare_anchored_prior, prototype_constrained_ot_coupling
 
 CONTEXT_KEYS = ("s", "e", "n", "w", "p")
@@ -39,6 +41,7 @@ def train_vae(sections, n_genes, is_count, gene_weights, cfg, device):
             total += loss.item()
         if ep == 0 or (ep + 1) % 5 == 0:
             print(f"  VAE {ep + 1}/{cfg['vae_epochs']} | loss={total / cfg['max_vae_steps_per_epoch']:.4f}", flush=True)
+    save_checkpoint(cpu_state_dict(vae), Path(cfg["output_dir"]) / "checkpoints" / "vae.pt")
     vae.eval()
     with torch.no_grad():
         for s in sections:
@@ -154,6 +157,8 @@ def train_niche(sections, triplets, n_protos, cfg, device):
             total += loss.item()
         if ep == 0 or (ep + 1) % 5 == 0:
             print(f"  Niche {ep + 1}/{cfg['niche_epochs']} | loss={total / len(order):.4f}", flush=True)
+    for name, model in (("niche_encoder", enc), ("niche_predictor", pred)):
+        save_checkpoint(cpu_state_dict(model), Path(cfg["output_dir"]) / "checkpoints" / f"{name}.pt")
     enc.eval(); pred.eval()
     # Each inference chunk includes neighbours from the complete section.
     from .models import chunked_knn
@@ -244,4 +249,5 @@ def train_flow(sections, triplets, centers, rare_protos, major_protos, niche_pre
             raise RuntimeError("Flow training performed no updates; check section overlap")
         if ep == 0 or (ep + 1) % 5 == 0:
             print(f"  Flow {ep + 1}/{cfg['fm_epochs']} | loss={total / success:.4f}", flush=True)
+    save_checkpoint(cpu_state_dict(flow), Path(cfg["output_dir"]) / "checkpoints" / "flow.pt")
     return flow.eval()

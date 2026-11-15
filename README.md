@@ -55,6 +55,7 @@ run.py                       保留的命令行入口（CUDA 使用物理 GPU 1�
 configs/local.json           数据路径、设备、训练与内存参数
 rare3d/
   config.py                  配置读取、随机种子与设备选择
+  checkpoints.py             权重保存、完整模型参数包加载
   data.py                    切片读取、基因对齐、深度识别与归一化
   models.py                  VAE、微环境编码器、强度预测器、RareFlowNet
   transport.py               RW-UOT、四叉树、稀有锚点先验与 OT 配对
@@ -102,14 +103,33 @@ tests/test_local_pipeline.py 本地迁移关键回归检查
 
 - `config.json`：此次实际使用的参数。
 - `data_summary.json`：切片、细胞、基因、物理深度和验证方案。
-- `models.pt`：VAE、微环境、强度预测器、流网络权重，以及基因、原型、空间尺度等元数据；在最终重建前保存。
+- `checkpoints/vae.pt`：VAE 训练结束后立即保存的权重，在提取全体细胞表征前写入。
+- `checkpoints/niche_encoder.pt`、`checkpoints/niche_predictor.pt`：微环境训练结束后立即保存的两个网络权重，在微环境推理前写入。
+- `checkpoints/flow.pt`：流匹配训练结束后保存的权重。
+- `models.pt`：包含上述四个网络权重，以及训练配置、基因、原型、空间尺度等元数据的完整参数包；在验证和最终重建前保存。
 - `metrics.json`：验证指标；两切片输入会记录跳过验证，空重建会记录原因。
 - `rare3d_val_comparison.png`：有非空验证重建时生成。
 - `zhuang_abca2_rare3d_reconstructed.h5ad`：所有观测切片和相邻切片之间的中间重建切片。
 
 H5AD 的 `X` 是 CSR 表达矩阵；`obsm['spatial']` 保存平面坐标，`obsm['spatial_3d']` 保存还原顺序的三维坐标。`obs` 中有来源、切片、深度和观测细胞类型；生成细胞的类型记为 `unknown`。观测值与解码后的期望表达值通过 `source` 区分。导出时逐片追加表达矩阵，完成后才将 `.partial.h5ad` 更名为正式文件。
 
-`models.pt` 保存最终权重和元数据；目前入口每次执行都会重新训练，不提供中断后继续训练。重新使用同一个输出目录会覆盖该次结果，建议每个正式实验设置独立的 `output_dir`。
+参数以 CPU 张量保存，先写入临时文件再更名；训练日志会打印实际保存路径。后续阶段失败时，已经完成阶段的独立权重仍会保留。Notebook 正式训练默认保存到 `outputs/server_gpu1/`，试跑保存到 `outputs/server_smoke_gpu1/`。
+
+在 Notebook 新单元中加载完整模型（先执行 GPU 设置单元，确保物理 GPU 1 可见）：
+
+```python
+from rare3d.checkpoints import load_models
+
+models, metadata = load_models("outputs/server_gpu1/models.pt", device="cuda")
+vae = models["vae"]
+niche_encoder = models["niche_encoder"]
+niche_predictor = models["niche_predictor"]
+flow_net = models["flow"]
+```
+
+`load_models` 根据保存的配置重建网络，严格加载参数，并切换到评估模式；参数包还包含 `gene_names`、`centers`、`xy_center` 等复用模型所需的元数据。在 CPU 上加载时设置 `device="cpu"`。独立 `.pt` 文件是纯 `state_dict`，可用 `model.load_state_dict(torch.load(path, map_location="cpu", weights_only=True))` 加载到相同结构的网络。
+
+加载权重不会重新训练，也不自动执行数据处理或三维重建。目前训练入口每次执行仍会从头训练，不提供中断后继续训练。重新使用同一个输出目录会覆盖该次结果，建议每个正式实验设置独立的 `output_dir`。
 
 ## 与原 Colab 的适配差异
 

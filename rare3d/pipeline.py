@@ -7,6 +7,7 @@ from pathlib import Path
 import torch
 
 from .config import set_seed, select_device, validate_config
+from .checkpoints import cpu_state_dict, save_checkpoint
 from .data import find_h5ad_files, select_files, load_zhuang_sections, prepare_geometry
 from .training import train_vae, discover_prototypes, build_train_triplets, train_niche, train_flow
 from .reconstruction import reconstruct_between, export_volume
@@ -33,8 +34,8 @@ def run(cfg):
     niche_enc, niche_pred = train_niche(sections, triplets, len(centers), cfg, device)
     flow = train_flow(sections, triplets, centers, rare, major, niche_pred, cfg, device)
     # Persist weights before reconstruction, which is the expensive final stage.
-    checkpoint = {"config": cfg, "vae": vae.state_dict(), "niche_encoder": niche_enc.state_dict(),
-                  "niche_predictor": niche_pred.state_dict(), "flow": flow.state_dict(),
+    checkpoint = {"config": cfg, "vae": cpu_state_dict(vae), "niche_encoder": cpu_state_dict(niche_enc),
+                  "niche_predictor": cpu_state_dict(niche_pred), "flow": cpu_state_dict(flow),
                   "gene_names": genes.tolist(), "is_count": is_count,
                   "centers": torch.from_numpy(centers), "rare_prototypes": sorted(rare),
                   "major_prototypes": sorted(major), "xy_center": torch.from_numpy(center),
@@ -42,9 +43,7 @@ def run(cfg):
                   "depth_axis": depth_axis, "plane_axes": plane_axes,
                   "section_files": [s["file"] for s in sections],
                   "validation_index": validation, "gene_weights": torch.from_numpy(gene_weights)}
-    temporary = out / "models.partial.pt"
-    torch.save(checkpoint, temporary)
-    temporary.replace(out / "models.pt")
+    save_checkpoint(checkpoint, out / "models.pt")
     summary = {"sections": len(sections), "cells": sum(s["X_csr"].shape[0] for s in sections),
                "genes": len(genes), "device": str(device), "expression_mode": "counts" if is_count else "normalized",
                "depth_axis": sections[0]["coord_names"][depth_axis],

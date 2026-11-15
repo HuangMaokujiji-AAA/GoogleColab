@@ -108,6 +108,24 @@ class LocalMigrationTests(unittest.TestCase):
             self.assertEqual(output.n_vars, 6)
             self.assertEqual(output.obs["source"].value_counts()["observed"], 64)
             self.assertTrue(np.isfinite(output.X.data).all())
+            from rare3d.checkpoints import load_models
+            models, checkpoint = load_models(result / "models.pt", device="cpu")
+            for name, model in models.items():
+                self.assertFalse(model.training)
+                weights = torch.load(result / "checkpoints" / f"{name}.pt",
+                                     map_location="cpu", weights_only=True)
+                self.assertEqual(weights.keys(), model.state_dict().keys())
+                for key, value in model.state_dict().items():
+                    self.assertEqual(value.device.type, "cpu")
+                    self.assertTrue(torch.isfinite(value).all())
+                    torch.testing.assert_close(value, weights[key], rtol=0, atol=0)
+                    torch.testing.assert_close(value, checkpoint[name][key], rtol=0, atol=0)
+            self.assertFalse(list(result.rglob("*.partial.pt")))
+            with torch.no_grad():
+                x = torch.ones(2, 6)
+                embedding, _ = models["vae"].encode(x, x.sum(-1, keepdim=True))
+                self.assertEqual(embedding.shape, (2, cfg["d_cell"]))
+                self.assertTrue(torch.isfinite(embedding).all())
 
 
 if __name__ == "__main__":
