@@ -8,11 +8,13 @@
 
 ```bash
 conda activate rare3d
-python -m pip install ipykernel jupyterlab
+python -m pip install -r requirements.txt
 python -m ipykernel install --user --name rare3d --display-name "Python (rare3d)"
 ```
 
-从项目根目录打开 `run.ipynb`，选择 **Python (rare3d)** 内核，然后按单元顺序执行。若需要启动 JupyterLab，可在项目目录运行 `jupyter lab --no-browser`，通过服务器已有的远程访问方式连接。
+`requirements.txt` 已包含 Notebook、JupyterLab 和 ipykernel。CUDA 版 PyTorch 按服务器环境安装完成后，再执行上述依赖安装命令。
+
+从项目根目录打开 `run.ipynb`，选择 **Python (rare3d)** 内核，然后按单元顺序执行。在项目目录运行 `jupyter notebook --no-browser` 可启动 Notebook 界面；也可以使用 `jupyter lab --no-browser` 启动 JupyterLab，通过服务器已有的远程访问方式连接。
 
 默认数据目录是相对于项目根目录的 `data/Zhuang-ABCA-2/`：
 
@@ -43,7 +45,7 @@ python -u run.py --device cuda --output-dir outputs/server_run01
 ```
 
 本地 CPU 试跑可执行 `.venv/bin/python run.py --smoke-test --device cpu --data-dir /实际数据目录`。
-模型计算需要 `requirements.txt` 中的依赖；Notebook 内核和界面依赖按上面的命令单独安装。当前机器已验证 CPU 流程，服务器 GPU 流程需在对应设备上执行。
+模型计算、Notebook 内核和界面依赖统一在 `requirements.txt` 中安装。当前机器已验证 CPU 流程，服务器 GPU 流程需在对应设备上执行。
 
 ## 文件职责
 
